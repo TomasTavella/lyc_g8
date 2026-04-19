@@ -76,6 +76,7 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 "<="  { return symbol(ParserSym.LESS_THAN_EQUAL); }
 ">="  { return symbol(ParserSym.GREATER_THAN_EQUAL); }
 "=="  { return symbol(ParserSym.DOBLE_EQUAL); }
+"!="  { return symbol(ParserSym.NOT_EQUAL); }
 "("   { return symbol(ParserSym.OPEN_BRACKET); }
 ")"   { return symbol(ParserSym.CLOSE_BRACKET); }
 ","   { return symbol(ParserSym.COMMA); }
@@ -94,7 +95,11 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 {FloatConstant} {return symbol(ParserSym.FLOAT_CONSTANT, yytext());}
 
 /* === Constantes string === */
-{StringConstant} {return symbol(ParserSym.STRING_CONSTANT, yytext());}
+{StringConstant} {
+    if (yytext().length() - 2 > MAX_LENGTH)
+        throw new InvalidLengthException(yytext());
+    return symbol(ParserSym.STRING_CONSTANT, yytext());
+}
 
 /* === Whitespace y comentarios === */
 {Whitespace}       { /* ignorar */ }
