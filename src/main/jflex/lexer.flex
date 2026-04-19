@@ -89,12 +89,12 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 {Identifier} {return symbol(ParserSym.IDENTIFIER, yytext());}
 
 /* === Constantes numericas === */
-{IntegerConstant} {return symbol(ParserSym.INTEGER_CONSTANT, value);}
+{IntegerConstant} {return symbol(ParserSym.INTEGER_CONSTANT, yytext());}
 
-{FloatConstant} {return symbol(ParserSym.FLOAT_CONSTANT, value);}
+{FloatConstant} {return symbol(ParserSym.FLOAT_CONSTANT, yytext());}
 
 /* === Constantes string === */
-{StringConstant} {return symbol(ParserSym.STRING_CONSTANT, value);}
+{StringConstant} {return symbol(ParserSym.STRING_CONSTANT, yytext());}
 
 /* === Whitespace y comentarios === */
 {Whitespace}       { /* ignorar */ }
