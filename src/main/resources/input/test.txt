@@ -1,1 +1,209 @@
-c=d*(e-21)/4
+#+
+   Archivo de pruebas para el compilador LyC - Grupo 8
+   Cubre temas comunes y temas especiales: Longitud y Ciclo Especial
++#
+
+#+ Declaracion de variables en bloque init +#
+init {
+    a, b, c : Int
+    x, y, z : Float
+    nombre, mensaje : String
+    resultado : Boolean
+}
+
+#+ ===== ASIGNACIONES BASICAS ===== +#
+
+a = 5
+b = 10
+c = 3
+x = 3.14
+y = .75
+z = 99.
+
+nombre = "Hola mundo"
+mensaje = "Compilador LyC"
+
+#+ ===== OPERACIONES ARITMETICAS ===== +#
+
+a = a + b
+b = a - c
+c = a * 2
+x = y / 2.5
+z = (x + y) * c
+a = b + c * 2 - 1
+
+#+ ===== OPERADORES DE COMPARACION ===== +#
+
+#+ Incluye != que es tema comun +#
+if (a != b)
+{
+    write("a es distinto de b")
+}
+
+if (a == b)
+{
+    write("a es igual a b")
+}
+
+if (a >= b)
+{
+    write("a mayor o igual que b")
+}
+
+if (x <= y)
+{
+    write("x menor o igual que y")
+}
+
+#+ ===== CONDICIONES LOGICAS ===== +#
+
+if (a > b AND c > 0)
+{
+    write("condicion AND cumplida")
+}
+
+if (a > b OR c > 0)
+{
+    write("condicion OR cumplida")
+}
+
+if (NOT a > b)
+{
+    write("NOT a no es mayor que b")
+}
+
+#+ ===== WHILE ESTANDAR ===== +#
+
+a = 1
+b = 5
+while (a < b)
+{
+    write(a)
+    a = a + 1
+}
+
+while (b > 0 AND a != b)
+{
+    b = b - 1
+}
+
+#+ ===== IF / ELSE ===== +#
+
+if (a > b)
+{
+    write("a es mayor")
+}
+else
+{
+    write("b es mayor o igual")
+}
+
+#+ If anidado +#
+if (a > 0)
+{
+    if (b > a)
+    {
+        write("b es mayor que a")
+    }
+    else
+    {
+        write("a es mayor o igual que b")
+    }
+}
+
+#+ ===== READ / WRITE ===== +#
+
+read(a)
+read(nombre)
+write(a + b)
+write(x * y)
+write("Fin de prueba basica")
+
+#+ ===== COMENTARIO ANIDADO ===== +#
+#+
+   Comentario de multiples lineas
+   #+ Comentario anidado nivel 1 +#
+   Fin del comentario principal
++#
+
+#+ ===== TEMA ESPECIAL: LONGITUD ===== +#
+
+#+ long devuelve la cantidad de elementos de la lista +#
+a = long([1, 2, 3, 4])
+
+b = long([x, y, z])
+
+c = long([1 + 2, 3 * 4, a - b, 10])
+
+#+ long usado en expresiones +#
+a = long([1, 2, 3]) + long([4, 5])
+
+if (long([a, b, c]) > 2)
+{
+    write("la lista tiene mas de 2 elementos")
+}
+
+write(long([x, y, z, x, y]))
+
+#+ ===== TEMA ESPECIAL: CICLO ESPECIAL ===== +#
+
+#+ Iteracion simple sobre lista de constantes +#
+while a IN [1, 2, 3] do
+    write(a)
+endwhile
+
+#+ Iteracion con expresiones en la lista +#
+while b IN [1 + 1, 2 + 2, 3 + 3] do
+    write(b)
+endwhile
+
+#+ Ciclo con sentencias multiples +#
+while c IN [10, 20, 30] do
+    write(c)
+    b = c + 1
+    write(b)
+endwhile
+
+#+ Ciclo especial con condicional adentro +#
+while a IN [1, 2, 3, 4] do
+    if (a != 3)
+    {
+        write(a)
+    }
+endwhile
+
+#+ Ciclo especial con variables en la lista +#
+b = 5
+c = 10
+while a IN [b, c, b + c] do
+    write(a)
+endwhile
+
+#+ ===== CASOS LIMITE ===== +#
+
+#+ Maximo para Int de 16 bits +#
+a = 32767
+b = 100
+
+#+ Float con decimales +#
+x = 32767.99
+y = .001
+
+#+ String hasta 50 caracteres +#
+nombre = "Texto de prueba con hasta cincuenta caracteres ok"
+
+#+ ===== CASOS DE ERROR COMENTADOS +#
+#+ ERROR: Identificador demasiado largo +#
+#+ variable_con_nombre_demasiado_largo_que_supera_limite = 5 +#
+
+#+ ERROR: String demasiado largo +#
+#+ nombre = "Este string supera los cincuenta caracteres permitidos y debe dar error" +#
+
+#+ ERROR: Entero fuera de rango +#
+#+ a = 99999 +#
+
+#+ ERROR: Caracter desconocido +#
+#+ a = 5 @ 3 +#
+
+#+ Fin del archivo de pruebas +#
+write("Compilacion exitosa")
