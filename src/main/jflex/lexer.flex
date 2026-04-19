@@ -62,8 +62,10 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 "AND"            { return symbol(ParserSym.AND); }
 "OR"             { return symbol(ParserSym.OR); }
 "NOT"            { return symbol(ParserSym.NOT); }
-"long"           { return symbol(ParserSym.LONG); } //tema especial longitud
-"IN"             { return symbol(ParserSym.IN); } //tema especial ciclo especial
+"long"           { return symbol(ParserSym.LONG); }
+"IN"             { return symbol(ParserSym.IN); }
+"do"             { return symbol(ParserSym.DO); }
+"endwhile"       { return symbol(ParserSym.ENDWHILE); }
 
 /* === Operadores y símbolos === */
 "="   { return symbol(ParserSym.ASSIG); }
