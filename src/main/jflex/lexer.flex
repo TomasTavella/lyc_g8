@@ -92,9 +92,29 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 {Identifier} {return symbol(ParserSym.IDENTIFIER, yytext());}
 
 /* === Constantes numericas === */
-{IntegerConstant} {return symbol(ParserSym.INTEGER_CONSTANT, yytext());}
+{IntegerConstant} {
+    try {
+            int value = Integer.parseInt(yytext());
+            if (value < Short.MIN_VALUE || value > Short.MAX_VALUE) { //Valido enteros de hasta 16 bits
+                throw new InvalidIntegerException("Constante fuera de rango: " + yytext());
+            }
+            return symbol(ParserSym.INTEGER_CONSTANT, value);
+        } catch (NumberFormatException ex) {
+            throw new InvalidNumericException("Constante inválida: " + yytext());
+        }
+}
 
-{FloatConstant} {return symbol(ParserSym.FLOAT_CONSTANT, yytext());}
+{FloatConstant} {
+    try {
+        double value = Double.parseDouble(yytext());
+        if (value > Float.MAX_VALUE || value < -Float.MAX_VALUE) { //VaLido Floats de hasta 32 bits
+            throw new InvalidNumericException("Constante flotante fuera de rango: " + yytext());
+        }
+        return symbol(ParserSym.FLOAT_CONSTANT, (float) value);
+    } catch (NumberFormatException ex) {
+        throw new InvalidNumericException("Constante flotante inválida: " + yytext());
+    }
+}
 
 /* === Constantes string === */
 {StringConstant} {

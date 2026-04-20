@@ -18,16 +18,16 @@ import static lyc.compiler.constants.Constants.MAX_LENGTH;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
-@Disabled
+//@Disabled
 public class LexerTest {
 
   private Lexer lexer;
 
 
   @Test
-  public void comment() throws Exception{
-    scan("/*This is a comment*/");
-    assertThat(nextToken()).isEqualTo(ParserSym.EOF);
+  public void comment() throws Exception {
+      scan("#+ This is a comment +#");
+      assertThat(nextToken()).isEqualTo(ParserSym.EOF);
   }
 
   @Test
@@ -38,13 +38,13 @@ public class LexerTest {
     });
   }
 
-  @Test
-  public void invalidIdLength() {
-    assertThrows(InvalidLengthException.class, () -> {
-      scan(getRandomString());
-      nextToken();
-    });
-  }
+    @Test
+    public void invalidIdLength() {
+        assertThrows(InvalidLengthException.class, () -> {
+            scan(getRandomString());
+            nextToken();
+        });
+    }
 
   @Test
   public void invalidPositiveIntegerConstantValue() {
