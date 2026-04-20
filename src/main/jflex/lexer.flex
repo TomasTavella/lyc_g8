@@ -89,8 +89,6 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 "["   { return symbol(ParserSym.OPEN_SQUARE_BRACKET); }
 "]"   { return symbol(ParserSym.CLOSE_SQUARE_BRACKET); }
 
-{Identifier} {return symbol(ParserSym.IDENTIFIER, yytext());}
-
 /* === Constantes numericas === */
 {IntegerConstant} {
     try {
@@ -121,6 +119,14 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
     if (yytext().length() - 2 > MAX_LENGTH)
         throw new InvalidLengthException(yytext());
     return symbol(ParserSym.STRING_CONSTANT, yytext());
+}
+
+/* === Identificadores === */
+{Identifier} {
+    if (yytext().length() > MAX_LENGTH) {
+        throw new InvalidLengthException("Identificador demasiado largo: " + yytext());
+    }
+    return symbol(ParserSym.IDENTIFIER, yytext());
 }
 
 /* === Whitespace y comentarios === */
