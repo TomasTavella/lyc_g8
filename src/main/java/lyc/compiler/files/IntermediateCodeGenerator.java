@@ -16,8 +16,15 @@ public class IntermediateCodeGenerator implements FileGenerator {
 
     @Override
     public void generate(FileWriter fileWriter) throws IOException {
+        // --- INICIO DEL DEBUG ---
+        System.out.println("\n==========================================");
+        System.out.println("DEBUG GENERADOR DE TERCETOS:");
+        System.out.println("Cantidad de tercetos en memoria: " + listaTercetos.size());
+        System.out.println("==========================================\n");
+        // --- FIN DEL DEBUG ---
+
         for (Terceto t : listaTercetos) {
-            fileWriter.write(t.toString() + "\n");
+            fileWriter.write("[" + t.getNroTerceto() + "] " + t.toString() + "\n");
         }
     }
 
@@ -53,4 +60,6 @@ public class IntermediateCodeGenerator implements FileGenerator {
         pilaSaltos.clear();
         Terceto.resetContador();
     }
+
+
 }
