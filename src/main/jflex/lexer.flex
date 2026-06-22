@@ -126,9 +126,7 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 
 /* === Identificadores === */
 {Identifier} {
-    if (yytext().length() > MAX_LENGTH) {
-        throw new InvalidLengthException("Identificador demasiado largo: " + yytext());
-    }
+    // Validación de longitud sólo para strings; identificadores pueden tener longitud flexible
     System.out.println("Lexema IDENTIFIER: " + yytext());
     return symbol(ParserSym.IDENTIFIER, yytext());
 }
