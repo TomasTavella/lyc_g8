@@ -12,6 +12,73 @@ class Parser;
 
 parser code {:
     public SymbolTableGenerator symbolTable = new SymbolTableGenerator();
+    
+    // Mappea tipos de constantes a tipos básicos
+    private String mapConstantToBasic(String type) {
+        if (type == null) return null;
+        switch(type) {
+            case "CTE_INTEGER": return "Int";
+            case "CTE_FLOAT": return "Float";
+            case "CTE_STRING": return "String";
+            default: return type;
+        }
+    }
+
+    // Infere el tipo de un terceto por su número (analiza recursivamente)
+    private String inferTypeFromTercetoIndex(int idx) {
+        try {
+            Terceto t = IntermediateCodeGenerator.getTerceto(idx);
+            String op = t.getOperando();
+            // Caso símbolo/constante directo (puede venir con o sin _)
+            if (op != null && !op.isEmpty() && !op.matches("\\d+") && !"+-*/=BFBIANDORNOTINREADWRITE".contains(op)) {
+                // intentamos obtener tipo desde la tabla de símbolos
+                String type = symbolTable.getTypeOfName(op);
+                if (type != null) return mapConstantToBasic(type);
+                // también puede que el operando tenga guion bajo
+                type = symbolTable.getTypeOfName(op.startsWith("_") ? op.substring(1) : "_"+op);
+                if (type != null) return mapConstantToBasic(type);
+            }
+
+            // Si el operando es una operación (ej: +, -, *, /), inferimos por sus operandos
+            String operador = t.getOperando();
+            if ("+".equals(operador) || "-".equals(operador) || "*".equals(operador) || "/".equals(operador)) {
+                String o1 = t.getOperador1();
+                String o2 = t.getOperador2();
+                String t1 = resolveOperandType(o1);
+                String t2 = resolveOperandType(o2);
+                if (t1 == null && t2 == null) return null;
+                if ("Float".equals(t1) || "Float".equals(t2)) return "Float";
+                return "Int";
+            }
+
+            // Otros casos: si el operando empieza por '_' es una constante o variable
+            if (op != null && op.startsWith("_")) {
+                String tname = symbolTable.getTypeOfName(op);
+                return mapConstantToBasic(tname);
+            }
+        } catch (Exception ex) {
+            return null;
+        }
+        return null;
+    }
+
+    private String resolveOperandType(String operand) {
+        if (operand == null) return null;
+        operand = operand.trim();
+        if (operand.isEmpty()) return null;
+        // Si es número (número de terceto)
+        if (operand.matches("\\d+")) {
+            try { return inferTypeFromTercetoIndex(Integer.parseInt(operand)); } catch(Exception e) { return null; }
+        }
+        // Si viene con _ (constante/var)
+        if (operand.startsWith("_")) {
+            String t = symbolTable.getTypeOfName(operand);
+            return mapConstantToBasic(t);
+        }
+        // Si es identificador simple
+        String t = symbolTable.getTypeOfName(operand);
+        return mapConstantToBasic(t);
+    }
 :}
 
 
@@ -81,11 +148,26 @@ statement ::= assignment {: System.out.println("[RULE] statement -> assignment")
 var_decl ::= id_list:l COLON type:t
              {:
                 System.out.println("[RULE] var_decl -> id_list : type");
+                // Chequeo de redeclaraciones
+                for (Object objName : (List<Object>) l) {
+                    String nm = objName.toString();
+                    if (symbolTable.isDeclared(nm)) {
+                        System.err.println("Semantic error: variable already declared -> " + nm);
+                        System.exit(1);
+                    }
+                }
                 symbolTable.addVariables((List<Object>) l, (String) t);
              :}
            | id_list:l COLON type:t var_decl
              {:
                 System.out.println("[RULE] var_decl -> id_list : type var_decl");
+                for (Object objName : (List<Object>) l) {
+                    String nm = objName.toString();
+                    if (symbolTable.isDeclared(nm)) {
+                        System.err.println("Semantic error: variable already declared -> " + nm);
+                        System.exit(1);
+                    }
+                }
                 symbolTable.addVariables((List<Object>) l, (String) t);
              :};
 
@@ -179,8 +261,31 @@ write ::= WRITE OPEN_BRACKET expr:e CLOSE_BRACKET
 
 assignment ::= IDENTIFIER:id ASSIG expr:e
              {:
-                System.out.println("[RULE] assignment -> IDENTIFIER = expr");
-                IntermediateCodeGenerator.addTerceto("=", e.toString(), id.toString());
+               System.out.println("[RULE] assignment -> IDENTIFIER = expr");
+               // Chequeos semánticos: existe la variable destino?
+               if (!symbolTable.isDeclared(id.toString())) {
+                   System.err.println("Semantic error: assignment to undeclared variable -> " + id.toString());
+                   System.exit(1);
+               }
+               // Inferimos tipo del LHS y del RHS (si es posible) para validar compatibilidad
+               String lhsType = symbolTable.getTypeOfName(id.toString());
+               String rhsType = null;
+               try {
+                   int terc = Integer.parseInt(e.toString());
+                   rhsType = inferTypeFromTercetoIndex(terc);
+               } catch(Exception ex) { rhsType = null; }
+
+               if (lhsType != null && rhsType != null) {
+                   // Permitimos Int -> Float, y exact match
+                   if (lhsType.equals(rhsType) || (lhsType.equals("Float") && rhsType.equals("Int"))) {
+                       // OK
+                   } else {
+                       System.err.println("Semantic error: incompatible assignment. LHS=" + lhsType + " RHS=" + rhsType + " for variable " + id.toString());
+                       System.exit(1);
+                   }
+               }
+
+               IntermediateCodeGenerator.addTerceto("=", e.toString(), id.toString());
              :};
 expr ::= expr:e PLUS term:t
        {: System.out.println("[RULE] expr -> expr + term"); RESULT = IntermediateCodeGenerator.addTerceto("+", e.toString(), t.toString()); :}
@@ -203,7 +308,15 @@ unary_expr ::= SUB factor:f
              | factor:f
              {: System.out.println("[RULE] unary_expr -> factor"); RESULT = f; :} ;
 factor ::= IDENTIFIER:id
-         {: System.out.println("[RULE] factor -> IDENTIFIER"); RESULT = IntermediateCodeGenerator.addTerceto(id.toString(), "", ""); :};
+         {:
+            System.out.println("[RULE] factor -> IDENTIFIER");
+            // Verificamos que la variable haya sido declarada
+            if (!symbolTable.isDeclared(id.toString())) {
+                System.err.println("Semantic error: variable not declared -> " + id.toString());
+                System.exit(1);
+            }
+            RESULT = IntermediateCodeGenerator.addTerceto(id.toString(), "", "");
+         :};
 factor ::= INTEGER_CONSTANT:i
          {:
             System.out.println("[RULE] factor -> INTEGER_CONSTANT");
@@ -233,25 +346,30 @@ factor ::= LONG OPEN_BRACKET OPEN_SQUARE_BRACKET expr_list CLOSE_SQUARE_BRACKET 
             RESULT = IntermediateCodeGenerator.addTerceto("LONG", "", "");
          :};
 condition ::= simple_condition:sc
-              {:
-                  System.out.println("[RULE] condition -> simple_condition");
-                  RESULT = sc;
-              :}
-            | simple_condition:sc1 AND simple_condition:sc2
-              {:
-                  System.out.println("[RULE] condition -> simple_condition AND simple_condition");
-                  RESULT = IntermediateCodeGenerator.addTerceto("AND", sc1.toString(), sc2.toString());
-              :}
-            | simple_condition:sc1 OR simple_condition:sc2
-              {:
-                  System.out.println("[RULE] condition -> simple_condition OR simple_condition");
-                  RESULT = IntermediateCodeGenerator.addTerceto("OR", sc1.toString(), sc2.toString());
-              :}
-            | NOT simple_condition:sc
-              {:
-                  System.out.println("[RULE] condition -> NOT simple_condition");
-                  RESULT = IntermediateCodeGenerator.addTerceto("NOT", sc.toString(), "");
-              :};
+                            {:
+                                    System.out.println("[RULE] condition -> simple_condition");
+                                    RESULT = sc;
+                            :}
+                        | condition:c1 AND condition:c2
+                            {:
+                                    System.out.println("[RULE] condition -> condition AND condition");
+                                    RESULT = IntermediateCodeGenerator.addTerceto("AND", c1.toString(), c2.toString());
+                            :}
+                        | condition:c1 OR condition:c2
+                            {:
+                                    System.out.println("[RULE] condition -> condition OR condition");
+                                    RESULT = IntermediateCodeGenerator.addTerceto("OR", c1.toString(), c2.toString());
+                            :}
+                        | NOT condition:c
+                            {:
+                                    System.out.println("[RULE] condition -> NOT condition");
+                                    RESULT = IntermediateCodeGenerator.addTerceto("NOT", c.toString(), "");
+                            :}
+                        | OPEN_BRACKET condition:c CLOSE_BRACKET
+                            {:
+                                    System.out.println("[RULE] condition -> ( condition )");
+                                    RESULT = c;
+                            :};
 
 simple_condition ::= expr:e1 GREATER_THAN expr:e2
                      {:

@@ -12,7 +12,12 @@ public class SymbolTableGenerator implements FileGenerator {
         for (Object name : names) {
             String nameStr = name.toString();
             String symbolName = "_" + nameStr;
-            entries.add(new SymbolEntry(symbolName, type, nameStr, nameStr.length()));
+            // Evitamos redeclaraciones: emitimos error si ya existe
+            if (findEntryByName(symbolName) != null) {
+                System.err.println("Semantic error: variable already declared -> " + nameStr);
+                System.exit(1);
+            }
+            entries.add(new SymbolEntry(symbolName, type, "-", nameStr.length()));
         }
     }
 
@@ -38,6 +43,27 @@ public class SymbolTableGenerator implements FileGenerator {
             fileWriter.write(String.format("%-15s %-10s %-15s %-10s%n",
                     entry.name, entry.type, entry.value, lengthStr));
         }
+    }
+
+    // Consulta si un nombre (sin o con guion bajo) está declarado
+    public boolean isDeclared(String name) {
+        if (name == null) return false;
+        SymbolEntry e = findEntryByName(name.startsWith("_") ? name : "_" + name);
+        return e != null;
+    }
+
+    // Obtiene el tipo almacenado para un símbolo dado. Acepta "a" o "_a".
+    public String getTypeOfName(String name) {
+        if (name == null) return null;
+        SymbolEntry e = findEntryByName(name.startsWith("_") ? name : "_" + name);
+        return e == null ? null : e.type;
+    }
+
+    private SymbolEntry findEntryByName(String symbolName) {
+        for (SymbolEntry e : entries) {
+            if (e.name.equals(symbolName)) return e;
+        }
+        return null;
     }
 
     private static class SymbolEntry {

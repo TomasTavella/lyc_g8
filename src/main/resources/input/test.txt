@@ -1,6 +1,5 @@
 #+
    Archivo de pruebas para el compilador LyC - Grupo 8
-   Entrega 1.0.0
 +#
 
 init {
