@@ -96,6 +96,7 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
             if (value < Short.MIN_VALUE || value > Short.MAX_VALUE) { //Valido enteros de hasta 16 bits
                 throw new InvalidIntegerException("Constante fuera de rango: " + yytext());
             }
+            System.out.println("Lexema INTEGER_CONSTANT: " + yytext());
             return symbol(ParserSym.INTEGER_CONSTANT, value);
         } catch (NumberFormatException ex) {
             throw new InvalidNumericException("Constante inválida: " + yytext());
@@ -108,6 +109,7 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
         if (value > Float.MAX_VALUE || value < -Float.MAX_VALUE) { //VaLido Floats de hasta 32 bits
             throw new InvalidNumericException("Constante flotante fuera de rango: " + yytext());
         }
+        System.out.println("Lexema FLOAT_CONSTANT: " + yytext());
         return symbol(ParserSym.FLOAT_CONSTANT, (float) value);
     } catch (NumberFormatException ex) {
         throw new InvalidNumericException("Constante flotante inválida: " + yytext());
@@ -118,6 +120,7 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
 {StringConstant} {
     if (yytext().length() - 2 > MAX_LENGTH)
         throw new InvalidLengthException(yytext());
+    System.out.println("Lexema STRING_CONSTANT: " + yytext());
     return symbol(ParserSym.STRING_CONSTANT, yytext());
 }
 
@@ -126,6 +129,7 @@ StringConstant  = \"({Letter}|{Digit}|{Whitespace})*\"
     if (yytext().length() > MAX_LENGTH) {
         throw new InvalidLengthException("Identificador demasiado largo: " + yytext());
     }
+    System.out.println("Lexema IDENTIFIER: " + yytext());
     return symbol(ParserSym.IDENTIFIER, yytext());
 }
 

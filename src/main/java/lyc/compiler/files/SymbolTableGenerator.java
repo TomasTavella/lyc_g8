@@ -22,6 +22,14 @@ public class SymbolTableGenerator implements FileGenerator {
         entries.add(new SymbolEntry(symbolName, "-", valStr, valStr.length()));
     }
 
+    public void addConstant(Object name, Object value, String type, Integer length) {
+        String symbolName = "_" + name.toString();
+        String valStr = value.toString();
+        // Longitud solo para strings
+        Integer len = type.equals("CTE_STRING") ? length : null;
+        entries.add(new SymbolEntry(symbolName, type, valStr, len));
+    }
+
     @Override
     public void generate(FileWriter fileWriter) throws IOException {
         fileWriter.write(String.format("%-15s %-10s %-15s %-10s%n", "Nombre", "TipoDato", "Valor", "Longitud"));
