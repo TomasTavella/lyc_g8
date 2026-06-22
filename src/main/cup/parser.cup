@@ -129,21 +129,19 @@ precedence right UMINUS;
 start with program;
 
 
-program ::= decl statements {: System.out.println("[RULE] program -> decl statements"); :} ;
+program ::= decl statements ;
 
-decl ::= INIT OPEN_BRACE var_decl CLOSE_BRACE {: System.out.println("[RULE] decl -> INIT { var_decl }"); :} ;
+decl ::= INIT OPEN_BRACE var_decl CLOSE_BRACE ;
 
 statements ::= /* vacío */
-               {: System.out.println("[RULE] statements -> "); :}
-               | statements statement
-               {: System.out.println("[RULE] statements -> statements statement"); :} ;
+               | statements statement ;
 
-statement ::= assignment {: System.out.println("[RULE] statement -> assignment"); :}
-              | while {: System.out.println("[RULE] statement -> while"); :}
-              | if {: System.out.println("[RULE] statement -> if"); :}
-              | read {: System.out.println("[RULE] statement -> reader"); :}
-              | write {: System.out.println("[RULE] statement -> write"); :}
-              | special_cycle {: System.out.println("[RULE] statement -> special_cycle"); :};
+statement ::= assignment
+              | while
+              | if
+              | read
+              | write
+              | special_cycle ;
 
 var_decl ::= id_list:l COLON type:t
              {:
