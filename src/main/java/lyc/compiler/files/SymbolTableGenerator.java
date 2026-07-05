@@ -43,6 +43,11 @@ public class SymbolTableGenerator implements FileGenerator {
         return null;
     }
 
+    // Acceso a las entradas para el generador de assembler (mismo paquete)
+    Set<SymbolEntry> getEntries() {
+        return entries;
+    }
+
     public void addConstant(Object name, Object value) {
         String symbolName = "_" + name.toString();
         String valStr = value.toString();
@@ -73,7 +78,7 @@ public class SymbolTableGenerator implements FileGenerator {
         }
     }
 
-    private static class SymbolEntry {
+    static class SymbolEntry {
         String name;
         String type;
         String value;
