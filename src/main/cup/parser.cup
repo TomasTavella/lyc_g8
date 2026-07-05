@@ -11,6 +11,54 @@ class Parser;
 
 parser code {:
     public SymbolTableGenerator symbolTable = new SymbolTableGenerator();
+
+    // Tipo resultado de cada terceto (Int / Float / String), para chequeo semántico de tipos.
+    // Se llena a medida que se arma la expresión.
+    private final java.util.Map<Integer, String> tipoTerceto = new java.util.HashMap<>();
+
+    // Normaliza el tipo de la tabla de símbolos a Int/Float/String.
+    private String mapTipo(String t) {
+        if (t == null) return null;
+        switch (t) {
+            case "CTE_INTEGER": return "Int";
+            case "CTE_FLOAT":   return "Float";
+            case "CTE_STRING":  return "String";
+            default: return t; // ya es Int/Float/String/Boolean
+        }
+    }
+
+    // Combina los tipos de dos operandos en una operación aritmética.
+    private String combinarAritmetico(int idx1, int idx2) {
+        String t1 = tipoTerceto.get(idx1);
+        String t2 = tipoTerceto.get(idx2);
+        if ("String".equals(t1) || "String".equals(t2)) {
+            throw new RuntimeException("Error semantico: no se puede operar aritmeticamente con String");
+        }
+        if ("Float".equals(t1) || "Float".equals(t2)) return "Float";
+        if ("Int".equals(t1) || "Int".equals(t2)) return "Int";
+        return null;
+    }
+
+    // Verifica que un identificador esté declarado.
+    private void chequearDeclarada(String id) {
+        if (!symbolTable.isDeclared(id)) {
+            throw new RuntimeException("Error semantico: variable no declarada -> " + id);
+        }
+    }
+
+    // Verifica declaración y compatibilidad de tipos en una asignación.
+    private void chequearAsignacion(String id, int exprIdx) {
+        chequearDeclarada(id);
+        String lhs = mapTipo(symbolTable.getTypeOfName(id));
+        String rhs = tipoTerceto.get(exprIdx);
+        if (lhs != null && rhs != null) {
+            boolean ok = lhs.equals(rhs) || (lhs.equals("Float") && rhs.equals("Int"));
+            if (!ok) {
+                throw new RuntimeException("Error semantico: asignacion incompatible, '" + id
+                    + "' es " + lhs + " y la expresion es " + rhs);
+            }
+        }
+    }
 :}
 
 // Terminals
@@ -89,12 +137,14 @@ var_decl ::= id_list:l COLON type:t
 
 id_list ::= IDENTIFIER:s
             {:
+               System.out.println("[RULE] id_list -> IDENTIFIER (" + s + ")");
                List<Object> list = new ArrayList<>();
                list.add(s);
                RESULT = list;
             :}
           | id_list:l COMMA IDENTIFIER:s
             {:
+               System.out.println("[RULE] id_list -> id_list , IDENTIFIER (" + s + ")");
                List<Object> list = (List<Object>) l;
                list.add(s);
                RESULT = list;
@@ -172,7 +222,8 @@ if ::= cond_if OPEN_BRACE statements CLOSE_BRACE
 
 read ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET
          {:
-             System.out.println("[RULE] reader -> read ( IDENTIFIER )");
+             System.out.println("[RULE] reader -> read ( IDENTIFIER (" + id + ") )");
+             chequearDeclarada(id.toString());
              IntermediateCodeGenerator.addTerceto("READ", id.toString(), "");
          :} ;
 
@@ -184,51 +235,61 @@ write ::= WRITE OPEN_BRACKET expr:e CLOSE_BRACKET
 
 assignment ::= IDENTIFIER:id ASSIG expr:e
              {:
-                System.out.println("[RULE] assignment -> IDENTIFIER = expr");
+                System.out.println("[RULE] assignment -> IDENTIFIER (" + id + ") = expr");
+                chequearAsignacion(id.toString(), e);
                 IntermediateCodeGenerator.addTerceto("=", e.toString(), id.toString());
              :};
 
 expr ::= expr:e PLUS term:t
-       {: System.out.println("[RULE] expr -> expr + term"); RESULT = IntermediateCodeGenerator.addTerceto("+", e.toString(), t.toString()); :}
+       {: System.out.println("[RULE] expr -> expr + term"); RESULT = IntermediateCodeGenerator.addTerceto("+", e.toString(), t.toString()); tipoTerceto.put(RESULT, combinarAritmetico(e, t)); :}
        | expr:e SUB term:t
-       {: System.out.println("[RULE] expr -> expr - term"); RESULT = IntermediateCodeGenerator.addTerceto("-", e.toString(), t.toString()); :}
+       {: System.out.println("[RULE] expr -> expr - term"); RESULT = IntermediateCodeGenerator.addTerceto("-", e.toString(), t.toString()); tipoTerceto.put(RESULT, combinarAritmetico(e, t)); :}
        | term:t
        {: System.out.println("[RULE] expr -> term"); RESULT = t; :} ;
 
 term ::= term:t MULT unary_expr:f
-       {: System.out.println("[RULE] term -> term * unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("*", t.toString(), f.toString()); :}
+       {: System.out.println("[RULE] term -> term * unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("*", t.toString(), f.toString()); tipoTerceto.put(RESULT, combinarAritmetico(t, f)); :}
        | term:t DIV unary_expr:f
-       {: System.out.println("[RULE] term -> term / unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("/", t.toString(), f.toString()); :}
+       {: System.out.println("[RULE] term -> term / unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("/", t.toString(), f.toString()); tipoTerceto.put(RESULT, combinarAritmetico(t, f)); :}
        | unary_expr:f
        {: System.out.println("[RULE] term -> unary_expr"); RESULT = f; :};
 
 unary_expr ::= SUB factor:f
-             {: System.out.println("[RULE] unary_expr -> - factor"); RESULT = IntermediateCodeGenerator.addTerceto("-", f.toString(), ""); :} %prec UMINUS
+             {: System.out.println("[RULE] unary_expr -> - factor"); RESULT = IntermediateCodeGenerator.addTerceto("-", f.toString(), ""); tipoTerceto.put(RESULT, tipoTerceto.get(f)); :} %prec UMINUS
              | PLUS factor:f
              {: System.out.println("[RULE] unary_expr -> + factor"); RESULT = f; :} %prec UMINUS
              | factor:f
              {: System.out.println("[RULE] unary_expr -> factor"); RESULT = f; :} ;
 
 factor ::= IDENTIFIER:id
-         {: System.out.println("[RULE] factor -> IDENTIFIER"); RESULT = IntermediateCodeGenerator.addTerceto(id.toString(), "", ""); :}
+         {:
+            System.out.println("[RULE] factor -> IDENTIFIER (" + id + ")");
+            chequearDeclarada(id.toString());
+            RESULT = IntermediateCodeGenerator.addTerceto(id.toString(), "", "");
+            tipoTerceto.put(RESULT, mapTipo(symbolTable.getTypeOfName(id.toString())));
+         :}
          | INTEGER_CONSTANT:i
          {:
-            System.out.println("[RULE] factor -> INTEGER_CONSTANT");
-            symbolTable.addConstant(i, i); RESULT = IntermediateCodeGenerator.addTerceto("_" + i.toString(), "", "");
+            System.out.println("[RULE] factor -> INTEGER_CONSTANT (" + i + ")");
+            symbolTable.addConstant(i, i);
+            RESULT = IntermediateCodeGenerator.addTerceto("_" + i.toString(), "", "");
+            tipoTerceto.put(RESULT, "Int");
          :}
          | OPEN_BRACKET expr:e CLOSE_BRACKET
          {: System.out.println("[RULE] factor -> ( expr )"); RESULT = e; :}
          | FLOAT_CONSTANT:f
          {:
-            System.out.println("[RULE] factor -> FLOAT_CONSTANT");
+            System.out.println("[RULE] factor -> FLOAT_CONSTANT (" + f + ")");
             symbolTable.addConstant(f, f);
             RESULT = IntermediateCodeGenerator.addTerceto("_" + f.toString(), "", "");
+            tipoTerceto.put(RESULT, "Float");
          :}
          | STRING_CONSTANT:s
          {:
-            System.out.println("[RULE] factor -> STRING_CONSTANT");
+            System.out.println("[RULE] factor -> STRING_CONSTANT (" + s + ")");
             symbolTable.addConstant(s, s);
             RESULT = IntermediateCodeGenerator.addTerceto("_" + s.toString(), "", "");
+            tipoTerceto.put(RESULT, "String");
          :}
          | LONG OPEN_BRACKET OPEN_SQUARE_BRACKET expr_list:cola CLOSE_SQUARE_BRACKET CLOSE_BRACKET
          {:
@@ -238,6 +299,7 @@ factor ::= IDENTIFIER:id
             int cantidad = ((List<Integer>) cola).size();
             symbolTable.addConstant(cantidad, cantidad);
             RESULT = IntermediateCodeGenerator.addTerceto("_" + cantidad, "", "");
+            tipoTerceto.put(RESULT, "Int");
          :};
 
 condition ::= simple_condition
@@ -367,6 +429,7 @@ special_cycle ::= WHILE IDENTIFIER:x IN OPEN_SQUARE_BRACKET expr_list:cola CLOSE
     {:
         // action1: asignamos el PRIMER elemento a la variable de control (iteración 1)
         // y recordamos dónde arranca el cuerpo para poder copiarlo después.
+        chequearDeclarada(x.toString());
         List<Integer> lista = (List<Integer>) cola;
         IntermediateCodeGenerator.addTerceto("=", String.valueOf(lista.get(0)), x.toString());
         int bodyStart = IntermediateCodeGenerator.getListaTercetos().size() + 1;
@@ -383,7 +446,7 @@ special_cycle ::= WHILE IDENTIFIER:x IN OPEN_SQUARE_BRACKET expr_list:cola CLOSE
             IntermediateCodeGenerator.addTerceto("=", String.valueOf(lista.get(k)), x.toString());
             IntermediateCodeGenerator.copiarBloqueRelocado(bodyStart, bodyEnd);
         }
-        System.out.println("[RULE] special_cycle -> WHILE IDENTIFIER IN [ expr_list ] DO statements ENDWHILE");
+        System.out.println("[RULE] special_cycle -> WHILE IDENTIFIER (" + x + ") IN [ expr_list ] DO statements ENDWHILE");
     :};
 
 type ::= INT     {: System.out.println("[RULE] type -> INT");     RESULT = "Int"; :}
