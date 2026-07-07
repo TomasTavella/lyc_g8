@@ -12,14 +12,60 @@ public class SymbolTableGenerator implements FileGenerator {
         for (Object name : names) {
             String nameStr = name.toString();
             String symbolName = "_" + nameStr;
-            entries.add(new SymbolEntry(symbolName, type, nameStr, nameStr.length()));
+            // Chequeo semántico: no permitir redeclaración
+            if (findEntryByName(symbolName) != null) {
+                throw new RuntimeException("Error semantico: variable ya declarada -> " + nameStr);
+            }
+            // Los identificadores NO guardan valor (columna Valor en "-")
+            entries.add(new SymbolEntry(symbolName, type, "-", nameStr.length()));
         }
+    }
+
+    // Indica si un identificador (con o sin guion bajo) está declarado
+    public boolean isDeclared(String name) {
+        if (name == null) return false;
+        String key = name.startsWith("_") ? name : "_" + name;
+        return findEntryByName(key) != null;
+    }
+
+    // Devuelve el tipo almacenado para un símbolo dado. Acepta "a" o "_a".
+    public String getTypeOfName(String name) {
+        if (name == null) return null;
+        String key = name.startsWith("_") ? name : "_" + name;
+        SymbolEntry e = findEntryByName(key);
+        return e == null ? null : e.type;
+    }
+
+    private SymbolEntry findEntryByName(String symbolName) {
+        for (SymbolEntry e : entries) {
+            if (e.name.equals(symbolName)) return e;
+        }
+        return null;
+    }
+
+    // Acceso a las entradas para el generador de assembler (mismo paquete)
+    Set<SymbolEntry> getEntries() {
+        return entries;
     }
 
     public void addConstant(Object name, Object value) {
         String symbolName = "_" + name.toString();
         String valStr = value.toString();
-        entries.add(new SymbolEntry(symbolName, "-", valStr, valStr.length()));
+        // El tipo de la constante se infiere del tipo Java del valor.
+        // La longitud se aplica SOLO a las constantes string.
+        String tipo;
+        Integer length;
+        if (value instanceof String) {
+            tipo = "CTE_STRING";
+            length = valStr.length();
+        } else if (value instanceof Float || value instanceof Double) {
+            tipo = "CTE_FLOAT";
+            length = null;
+        } else {
+            tipo = "CTE_INTEGER";
+            length = null;
+        }
+        entries.add(new SymbolEntry(symbolName, tipo, valStr, length));
     }
 
     @Override
@@ -32,7 +78,7 @@ public class SymbolTableGenerator implements FileGenerator {
         }
     }
 
-    private static class SymbolEntry {
+    static class SymbolEntry {
         String name;
         String type;
         String value;

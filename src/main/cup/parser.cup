@@ -1,1 +1,455 @@
-package lyc.compiler;import lyc.compiler.files.SymbolTableGenerator;import java_cup.runtime.*;import lyc.compiler.model.*;import java.util.*;import lyc.compiler.files.IntermediateCodeGenerator;import lyc.compiler.files.Terceto;class Parser;parser code {:    public SymbolTableGenerator symbolTable = new SymbolTableGenerator();:}// Terminalsterminal UMINUS;terminal ASSIG;terminal PLUS;terminal SUB;terminal MULT;terminal DIV;terminal OPEN_BRACKET;terminal CLOSE_BRACKET;terminal INTEGER_CONSTANT;terminal IDENTIFIER;terminal DOBLE_EQUAL, NOT_EQUAL, INIT, GREATER_THAN, LESS_THAN_EQUAL, ELSE, IF;terminal CLOSE_BRACE, COLON, SEMICOLON, OR, IN, WHILE;terminal STRING_CONSTANT, STRING, FLOAT, INT, BOOLEAN, READ;terminal LESS_THAN, NOT, AND, CLOSE_SQUARE_BRACKET, COMMA, OPEN_BRACE;terminal OPEN_SQUARE_BRACKET, LONG, FLOAT_CONSTANT, WRITE, GREATER_THAN_EQUAL;terminal DO, ENDWHILE;// Non Terminalsnon terminal Integer expr,term,factor;non terminal Integer condition,comparacion,simple_condition;non terminal Integer elemento;non terminal Integer unary_expr;non terminal String comparador;non terminal assignment;non terminal String expr_list;non terminal program, statements, statement;non terminal decl,var_decl;non terminal id_list;non terminal type;non terminal while, if, read, write;non terminal special_cycle;non terminal cond_if, end_if_true;// Precedenciaprecedence left OR;precedence left AND;precedence right NOT;precedence left PLUS, SUB;precedence left MULT, DIV;precedence right UMINUS;// Start Symbol Definitionstart with program;program ::= decl statements {: System.out.println("[RULE] program -> decl statements"); :} ;decl ::= INIT OPEN_BRACE var_decl CLOSE_BRACE {: System.out.println("[RULE] decl -> INIT { var_decl }"); :} ;statements ::= /* vacío */               {: System.out.println("[RULE] statements -> "); :}               | statements statement               {: System.out.println("[RULE] statements -> statements statement"); :} ;statement ::= assignment {: System.out.println("[RULE] statement -> assignment"); :}              | while {: System.out.println("[RULE] statement -> while"); :}              | if {: System.out.println("[RULE] statement -> if"); :}              | read {: System.out.println("[RULE] statement -> reader"); :}              | write {: System.out.println("[RULE] statement -> write"); :}              | special_cycle {: System.out.println("[RULE] statement -> special_cycle"); :};var_decl ::= id_list:l COLON type:t             {:                System.out.println("[RULE] var_decl -> id_list : type");                symbolTable.addVariables((List<Object>) l, (String) t);             :}           | id_list:l COLON type:t var_decl             {:                System.out.println("[RULE] var_decl -> id_list : type var_decl");                symbolTable.addVariables((List<Object>) l, (String) t);             :};id_list ::= IDENTIFIER:s              {:                 List<Object> list = new ArrayList<>();                 list.add(s);                 RESULT = list;              :}          | id_list:l COMMA IDENTIFIER:s              {:                 List<Object> list = (List<Object>) l;                 list.add(s);                 RESULT = list;              :};while ::= WHILE          {:              // 1. Guardamos el número del próximo terceto (donde arranca a evaluarse la condición)              int inicioWhile = IntermediateCodeGenerator.getListaTercetos().size() + 1;              IntermediateCodeGenerator.getPilaSaltos().push(inicioWhile);          :}          OPEN_BRACKET condition:c CLOSE_BRACKET          {:              // 2. Generamos el salto por falso (BF) con destino vacío y lo apilamos              int saltoFalso = IntermediateCodeGenerator.addTerceto("BF", c.toString(), "");              IntermediateCodeGenerator.getPilaSaltos().push(saltoFalso);          :}          OPEN_BRACE statements CLOSE_BRACE          {:              // 3. Al terminar el bloque, desapilamos en orden inverso (LIFO)              int saltoFalso = IntermediateCodeGenerator.getPilaSaltos().pop();              int inicioWhile = IntermediateCodeGenerator.getPilaSaltos().pop();              // 4. Generamos el salto incondicional (BI) para obligarlo a volver arriba              IntermediateCodeGenerator.addTerceto("BI", String.valueOf(inicioWhile), "");              // 5. Completamos el destino del salto por falso (sale del while)              int finWhile = IntermediateCodeGenerator.getListaTercetos().size() + 1;              IntermediateCodeGenerator.getTerceto(saltoFalso).setOperador2(String.valueOf(finWhile));              System.out.println("[RULE] while -> WHILE( condition ) { statements }");          :} ;// --- MARCADORES PARA EL IF ---// 1. Se ejecuta apenas termina la condicióncond_if ::= IF OPEN_BRACKET condition:c CLOSE_BRACKET            {:                int saltoFalso = IntermediateCodeGenerator.addTerceto("BF", c.toString(), "");                IntermediateCodeGenerator.getPilaSaltos().push(saltoFalso);            :};// 2. Se ejecuta SOLO si hay un ELSE, justo antes de entrar a su bloqueend_if_true ::= /* vacío, no consume tokens */            {:                int saltoIncondicional = IntermediateCodeGenerator.addTerceto("BI", "", "");                int saltoFalso = IntermediateCodeGenerator.getPilaSaltos().pop();                int inicioElse = IntermediateCodeGenerator.getListaTercetos().size() + 1;                IntermediateCodeGenerator.getTerceto(saltoFalso).setOperador2(String.valueOf(inicioElse));                IntermediateCodeGenerator.getPilaSaltos().push(saltoIncondicional);            :};// --- REGLA PRINCIPAL ---if ::= cond_if OPEN_BRACE statements CLOSE_BRACE       {:           int saltoFalso = IntermediateCodeGenerator.getPilaSaltos().pop();           int proximoTerceto = IntermediateCodeGenerator.getListaTercetos().size() + 1;           IntermediateCodeGenerator.getTerceto(saltoFalso).setOperador2(String.valueOf(proximoTerceto));           System.out.println("[RULE] if -> IF( condition ) { statements }");       :}     | cond_if OPEN_BRACE statements CLOSE_BRACE end_if_true ELSE OPEN_BRACE statements CLOSE_BRACE       {:           int saltoIncondicional = IntermediateCodeGenerator.getPilaSaltos().pop();           int finIf = IntermediateCodeGenerator.getListaTercetos().size() + 1;           IntermediateCodeGenerator.getTerceto(saltoIncondicional).setOperador1(String.valueOf(finIf));           System.out.println("[RULE] if -> IF( condition ) { statements } ELSE { statements }");       :};read ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET         {:             System.out.println("[RULE] reader -> read ( IDENTIFIER )");             IntermediateCodeGenerator.addTerceto("READ", id.toString(), "");         :} ;write ::= WRITE OPEN_BRACKET expr:e CLOSE_BRACKET       {:           System.out.println("[RULE] write -> write ( expr )");           IntermediateCodeGenerator.addTerceto("WRITE", e.toString(), "");       :} ;assignment ::= IDENTIFIER:id ASSIG expr:e             {:                System.out.println("[RULE] assignment -> IDENTIFIER = expr");                IntermediateCodeGenerator.addTerceto("=", e.toString(), id.toString());             :};expr ::= expr:e PLUS term:t       {: System.out.println("[RULE] expr -> expr + term"); RESULT = IntermediateCodeGenerator.addTerceto("+", e.toString(), t.toString()); :}       | expr:e SUB term:t       {: System.out.println("[RULE] expr -> expr - term"); RESULT = IntermediateCodeGenerator.addTerceto("-", e.toString(), t.toString()); :}       | term:t       {: System.out.println("[RULE] expr -> term"); RESULT = t; :} ;term ::= term:t MULT unary_expr:f       {: System.out.println("[RULE] term -> term * unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("*", t.toString(), f.toString()); :};term ::= term:t DIV unary_expr:f       {: System.out.println("[RULE] term -> term / unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("/", t.toString(), f.toString()); :};term ::= unary_expr:f       {: System.out.println("[RULE] term -> unary_expr"); RESULT = f; :};unary_expr ::= SUB factor:f             {: System.out.println("[RULE] unary_expr -> - factor"); RESULT = IntermediateCodeGenerator.addTerceto("-", f.toString(), ""); :} %prec UMINUS             | PLUS factor:f             {: System.out.println("[RULE] unary_expr -> + factor"); RESULT = f; :} %prec UMINUS             | factor:f             {: System.out.println("[RULE] unary_expr -> factor"); RESULT = f; :} ;factor ::= IDENTIFIER:id         {: System.out.println("[RULE] factor -> IDENTIFIER"); RESULT = IntermediateCodeGenerator.addTerceto(id.toString(), "", ""); :};factor ::= INTEGER_CONSTANT:i         {:            System.out.println("[RULE] factor -> INTEGER_CONSTANT");            symbolTable.addConstant(i, i); RESULT = IntermediateCodeGenerator.addTerceto("_" + i.toString(), "", "");         :};factor ::= OPEN_BRACKET expr:e CLOSE_BRACKET         {: System.out.println("[RULE] factor -> ( expr )"); RESULT = e; :};factor ::= FLOAT_CONSTANT:f         {:            System.out.println("[RULE] factor -> FLOAT_CONSTANT");            symbolTable.addConstant(f, f);            RESULT = IntermediateCodeGenerator.addTerceto("_" + f.toString(), "", "");         :};factor ::= STRING_CONSTANT:s         {:            System.out.println("[RULE] factor -> STRING_CONSTANT");            symbolTable.addConstant(s, s);            RESULT = IntermediateCodeGenerator.addTerceto("_" + s.toString(), "", "");         :};factor ::= LONG OPEN_BRACKET OPEN_SQUARE_BRACKET expr_list CLOSE_SQUARE_BRACKET CLOSE_BRACKET         {:            System.out.println("[RULE] factor -> long ( [ expr_list ] )");            // Generamos el terceto de la función LONG y lo subimos            RESULT = IntermediateCodeGenerator.addTerceto("LONG", "", "");         :};condition ::= simple_condition:sc              {:                  System.out.println("[RULE] condition -> simple_condition");                  RESULT = sc;              :}            | simple_condition:sc1 AND simple_condition:sc2              {:                  System.out.println("[RULE] condition -> simple_condition AND simple_condition");                  RESULT = IntermediateCodeGenerator.addTerceto("AND", sc1.toString(), sc2.toString());              :}            | simple_condition:sc1 OR simple_condition:sc2              {:                  System.out.println("[RULE] condition -> simple_condition OR simple_condition");                  RESULT = IntermediateCodeGenerator.addTerceto("OR", sc1.toString(), sc2.toString());              :}            | NOT simple_condition:sc              {:                  System.out.println("[RULE] condition -> NOT simple_condition");                  RESULT = IntermediateCodeGenerator.addTerceto("NOT", sc.toString(), "");              :};simple_condition ::= expr:e1 GREATER_THAN expr:e2                     {:                        System.out.println("[RULE] simple_condition -> expr > expr");                        RESULT = IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());                     :}                   | expr:e1 LESS_THAN expr:e2                     {:                        System.out.println("[RULE] simple_condition -> expr < expr");                        RESULT = IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());                     :}                   | expr:e1 LESS_THAN_EQUAL expr:e2                     {:                        System.out.println("[RULE] simple_condition -> expr <= expr");                        RESULT = IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());                     :}                   | expr:e1 GREATER_THAN_EQUAL expr:e2                     {:                        System.out.println("[RULE] simple_condition -> expr >= expr");                        RESULT = IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());                     :}                   | expr:e1 DOBLE_EQUAL expr:e2                     {:                        System.out.println("[RULE] simple_condition -> expr == expr");                        RESULT = IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());                     :}                   | expr:e1 NOT_EQUAL expr:e2                     {:                        System.out.println("[RULE] simple_condition -> expr != expr");                        RESULT = IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());                     :};expr_list ::= expr:e    {:        System.out.println("[RULE] expr_list -> expr");        RESULT = e.toString();    :}    | expr_list:l COMMA expr:e    {:        System.out.println("[RULE] expr_list -> expr_list , expr");        // Concatenamos los números de terceto separados por un guion o coma        RESULT = l + "_" + e.toString();    :};special_cycle ::= WHILE IDENTIFIER:id IN OPEN_SQUARE_BRACKET expr_list:lista CLOSE_SQUARE_BRACKET DO    {:        // 1. Guardamos la posición donde arranca el ciclo        int inicioCiclo = IntermediateCodeGenerator.getListaTercetos().size() + 1;        IntermediateCodeGenerator.getPilaSaltos().push(inicioCiclo);        // 2. Generamos un terceto que represente la condición de "pertenencia" a la lista        int cond = IntermediateCodeGenerator.addTerceto("IN", id.toString(), lista);        // 3. Generamos el salto por falso (BF) y lo apilamos        int saltoFalso = IntermediateCodeGenerator.addTerceto("BF", String.valueOf(cond), "");        IntermediateCodeGenerator.getPilaSaltos().push(saltoFalso);    :}    statements ENDWHILE    {:        // 4. Al terminar el bloque, desapilamos para cerrar el ciclo        int saltoFalso = IntermediateCodeGenerator.getPilaSaltos().pop();        int inicioCiclo = IntermediateCodeGenerator.getPilaSaltos().pop();        // 5. Salto incondicional para volver a evaluar la condición        IntermediateCodeGenerator.addTerceto("BI", String.valueOf(inicioCiclo), "");        // 6. Completamos el destino del salto por falso (para salir del ciclo)        int finCiclo = IntermediateCodeGenerator.getListaTercetos().size() + 1;        IntermediateCodeGenerator.getTerceto(saltoFalso).setOperador2(String.valueOf(finCiclo));        System.out.println("[RULE] special_cycle -> WHILE IDENTIFIER IN [ expr_list ] DO statements ENDWHILE");    :};type ::= INT     {: System.out.println("[RULE] type -> INT");     RESULT = "Int"; :}       | BOOLEAN {: System.out.println("[RULE] type -> BOOLEAN"); RESULT = "Boolean"; :}       | FLOAT   {: System.out.println("[RULE] type -> FLOAT");   RESULT = "Float"; :}       | STRING  {: System.out.println("[RULE] type -> STRING");  RESULT = "String"; :};
+package lyc.compiler;
+
+import lyc.compiler.files.SymbolTableGenerator;
+import java_cup.runtime.*;
+import lyc.compiler.model.*;
+import java.util.*;
+import lyc.compiler.files.IntermediateCodeGenerator;
+import lyc.compiler.files.Terceto;
+
+class Parser;
+
+parser code {:
+    public SymbolTableGenerator symbolTable = new SymbolTableGenerator();
+
+    // Tipo resultado de cada terceto (Int / Float / String), para chequeo semántico de tipos.
+    // Se llena a medida que se arma la expresión.
+    private final java.util.Map<Integer, String> tipoTerceto = new java.util.HashMap<>();
+
+    // Normaliza el tipo de la tabla de símbolos a Int/Float/String.
+    private String mapTipo(String t) {
+        if (t == null) return null;
+        switch (t) {
+            case "CTE_INTEGER": return "Int";
+            case "CTE_FLOAT":   return "Float";
+            case "CTE_STRING":  return "String";
+            default: return t; // ya es Int/Float/String/Boolean
+        }
+    }
+
+    // Combina los tipos de dos operandos en una operación aritmética.
+    private String combinarAritmetico(int idx1, int idx2) {
+        String t1 = tipoTerceto.get(idx1);
+        String t2 = tipoTerceto.get(idx2);
+        if ("String".equals(t1) || "String".equals(t2)) {
+            throw new RuntimeException("Error semantico: no se puede operar aritmeticamente con String");
+        }
+        if ("Float".equals(t1) || "Float".equals(t2)) return "Float";
+        if ("Int".equals(t1) || "Int".equals(t2)) return "Int";
+        return null;
+    }
+
+    // Verifica que un identificador esté declarado.
+    private void chequearDeclarada(String id) {
+        if (!symbolTable.isDeclared(id)) {
+            throw new RuntimeException("Error semantico: variable no declarada -> " + id);
+        }
+    }
+
+    // Verifica declaración y compatibilidad de tipos en una asignación.
+    private void chequearAsignacion(String id, int exprIdx) {
+        chequearDeclarada(id);
+        String lhs = mapTipo(symbolTable.getTypeOfName(id));
+        String rhs = tipoTerceto.get(exprIdx);
+        if (lhs != null && rhs != null) {
+            boolean ok = lhs.equals(rhs) || (lhs.equals("Float") && rhs.equals("Int"));
+            if (!ok) {
+                throw new RuntimeException("Error semantico: asignacion incompatible, '" + id
+                    + "' es " + lhs + " y la expresion es " + rhs);
+            }
+        }
+    }
+:}
+
+// Terminals
+terminal UMINUS;
+terminal ASSIG;
+terminal PLUS;
+terminal SUB;
+terminal MULT;
+terminal DIV;
+terminal OPEN_BRACKET;
+terminal CLOSE_BRACKET;
+terminal INTEGER_CONSTANT;
+terminal IDENTIFIER;
+terminal DOBLE_EQUAL, NOT_EQUAL, INIT, GREATER_THAN, LESS_THAN_EQUAL, ELSE, IF;
+terminal CLOSE_BRACE, COLON, SEMICOLON, OR, IN, WHILE;
+terminal STRING_CONSTANT, STRING, FLOAT, INT, BOOLEAN, READ;
+terminal LESS_THAN, NOT, AND, CLOSE_SQUARE_BRACKET, COMMA, OPEN_BRACE;
+terminal OPEN_SQUARE_BRACKET, LONG, FLOAT_CONSTANT, WRITE, GREATER_THAN_EQUAL;
+terminal DO, ENDWHILE;
+
+// Non Terminals
+non terminal Integer expr, term, factor;
+non terminal Integer condition, comparacion, simple_condition;
+non terminal Integer elemento;
+non terminal Integer unary_expr;
+non terminal String comparador;
+non terminal assignment;
+non terminal List expr_list;
+non terminal program, statements, statement;
+non terminal decl, var_decl;
+non terminal id_list;
+non terminal type;
+non terminal while, if, read, write;
+non terminal special_cycle;
+non terminal cond_if;
+
+// Precedencia
+precedence left OR;
+precedence left AND;
+precedence right NOT;
+precedence left PLUS, SUB;
+precedence left MULT, DIV;
+precedence right UMINUS;
+
+// Start Symbol Definition
+start with program;
+
+program ::= decl statements
+            {: System.out.println("[RULE] program -> decl statements"); :} ;
+
+decl ::= INIT OPEN_BRACE var_decl CLOSE_BRACE
+         {: System.out.println("[RULE] decl -> INIT { var_decl }"); :} ;
+
+statements ::= /* vacío */
+               {: System.out.println("[RULE] statements -> "); :}
+             | statements statement
+               {: System.out.println("[RULE] statements -> statements statement"); :} ;
+
+statement ::= assignment {: System.out.println("[RULE] statement -> assignment"); :}
+            | while {: System.out.println("[RULE] statement -> while"); :}
+            | if {: System.out.println("[RULE] statement -> if"); :}
+            | read {: System.out.println("[RULE] statement -> reader"); :}
+            | write {: System.out.println("[RULE] statement -> write"); :}
+            | special_cycle {: System.out.println("[RULE] statement -> special_cycle"); :};
+
+var_decl ::= id_list:l COLON type:t
+             {:
+                System.out.println("[RULE] var_decl -> id_list : type");
+                symbolTable.addVariables((List<Object>) l, (String) t);
+             :}
+           | id_list:l COLON type:t var_decl
+             {:
+                System.out.println("[RULE] var_decl -> id_list : type var_decl");
+                symbolTable.addVariables((List<Object>) l, (String) t);
+             :};
+
+id_list ::= IDENTIFIER:s
+            {:
+               System.out.println("[RULE] id_list -> IDENTIFIER // id_list -> " + s);
+               List<Object> list = new ArrayList<>();
+               list.add(s);
+               RESULT = list;
+            :}
+          | id_list:l COMMA IDENTIFIER:s
+            {:
+               System.out.println("[RULE] id_list -> id_list , IDENTIFIER // id_list -> id_list , " + s);
+               List<Object> list = (List<Object>) l;
+               list.add(s);
+               RESULT = list;
+            :};
+
+while ::= WHILE
+          {:
+              // 1. Guardamos el número del próximo terceto (donde arranca a evaluarse la condición)
+              int inicioWhile = IntermediateCodeGenerator.getListaTercetos().size() + 1;
+              IntermediateCodeGenerator.getPilaSaltos().push(inicioWhile);
+          :}
+          OPEN_BRACKET condition CLOSE_BRACKET
+          OPEN_BRACE statements CLOSE_BRACE
+          {:
+              // Al cerrar el bloque desapilamos: primero la cantidad de saltos por falso
+              // que dejó la condición, luego esos saltos, y por debajo el inicioWhile.
+              int cantidad = IntermediateCodeGenerator.getPilaSaltos().pop();
+              List<Integer> saltos = new ArrayList<>();
+              for (int i = 0; i < cantidad; i++) {
+                  saltos.add(IntermediateCodeGenerator.getPilaSaltos().pop());
+              }
+              int inicioWhile = IntermediateCodeGenerator.getPilaSaltos().pop();
+
+              // Salto incondicional que obliga a volver arriba a reevaluar la condición
+              IntermediateCodeGenerator.addTerceto("BI", String.valueOf(inicioWhile), "");
+
+              // Completamos el destino de todos los saltos por falso (salen del while)
+              int finWhile = IntermediateCodeGenerator.getListaTercetos().size() + 1;
+              for (int idx : saltos) {
+                  IntermediateCodeGenerator.getTerceto(idx).setOperador1(String.valueOf(finWhile));
+              }
+              System.out.println("[RULE] while -> WHILE( condition ) { statements }");
+          :} ;
+
+// --- MARCADOR PARA EL IF ---
+// El salto por falso ya lo generó simple_condition; aquí no hace falta generar nada.
+cond_if ::= IF OPEN_BRACKET condition CLOSE_BRACKET
+            {: /* saltos y cantidad ya quedaron apilados por condition */ :};
+
+// --- REGLA PRINCIPAL DEL IF ---
+if ::= cond_if OPEN_BRACE statements CLOSE_BRACE
+       {:
+           // Sin ELSE: los saltos por falso apuntan al primer terceto posterior al if
+           int cantidad = IntermediateCodeGenerator.getPilaSaltos().pop();
+           int proximoTerceto = IntermediateCodeGenerator.getListaTercetos().size() + 1;
+           for (int i = 0; i < cantidad; i++) {
+               int idx = IntermediateCodeGenerator.getPilaSaltos().pop();
+               IntermediateCodeGenerator.getTerceto(idx).setOperador1(String.valueOf(proximoTerceto));
+           }
+           System.out.println("[RULE] if -> IF( condition ) { statements }");
+       :}
+     | cond_if OPEN_BRACE statements CLOSE_BRACE
+       {:
+           // Marcador antes del ELSE: cierra el bloque verdadero
+           int saltoIncondicional = IntermediateCodeGenerator.addTerceto("BI", "", "");
+
+           // Los saltos por falso del if apuntan al inicio del bloque ELSE
+           int cantidad = IntermediateCodeGenerator.getPilaSaltos().pop();
+           int inicioElse = IntermediateCodeGenerator.getListaTercetos().size() + 1;
+           for (int i = 0; i < cantidad; i++) {
+               int idx = IntermediateCodeGenerator.getPilaSaltos().pop();
+               IntermediateCodeGenerator.getTerceto(idx).setOperador1(String.valueOf(inicioElse));
+           }
+
+           IntermediateCodeGenerator.getPilaSaltos().push(saltoIncondicional);
+       :}
+       ELSE OPEN_BRACE statements CLOSE_BRACE
+       {:
+           // Con ELSE: completamos el salto incondicional que salta por encima del bloque ELSE
+           int saltoIncondicional = IntermediateCodeGenerator.getPilaSaltos().pop();
+           int finIf = IntermediateCodeGenerator.getListaTercetos().size() + 1;
+           IntermediateCodeGenerator.getTerceto(saltoIncondicional).setOperador1(String.valueOf(finIf));
+           System.out.println("[RULE] if -> IF( condition ) { statements } ELSE { statements }");
+       :};
+
+read ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET
+         {:
+             System.out.println("[RULE] reader -> read ( IDENTIFIER ) // reader -> read ( " + id + " )");
+             chequearDeclarada(id.toString());
+             IntermediateCodeGenerator.addTerceto("READ", id.toString(), "");
+         :} ;
+
+write ::= WRITE OPEN_BRACKET expr:e CLOSE_BRACKET
+       {:
+           System.out.println("[RULE] write -> write ( expr )");
+           IntermediateCodeGenerator.addTerceto("WRITE", e.toString(), "");
+       :} ;
+
+assignment ::= IDENTIFIER:id ASSIG expr:e
+             {:
+                System.out.println("[RULE] assignment -> IDENTIFIER = expr // assignment -> " + id + " = expr");
+                chequearAsignacion(id.toString(), e);
+                IntermediateCodeGenerator.addTerceto("=", e.toString(), id.toString());
+             :};
+
+expr ::= expr:e PLUS term:t
+       {: System.out.println("[RULE] expr -> expr + term"); RESULT = IntermediateCodeGenerator.addTerceto("+", e.toString(), t.toString()); tipoTerceto.put(RESULT, combinarAritmetico(e, t)); :}
+       | expr:e SUB term:t
+       {: System.out.println("[RULE] expr -> expr - term"); RESULT = IntermediateCodeGenerator.addTerceto("-", e.toString(), t.toString()); tipoTerceto.put(RESULT, combinarAritmetico(e, t)); :}
+       | term:t
+       {: System.out.println("[RULE] expr -> term"); RESULT = t; :} ;
+
+term ::= term:t MULT unary_expr:f
+       {: System.out.println("[RULE] term -> term * unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("*", t.toString(), f.toString()); tipoTerceto.put(RESULT, combinarAritmetico(t, f)); :}
+       | term:t DIV unary_expr:f
+       {: System.out.println("[RULE] term -> term / unary_expr"); RESULT = IntermediateCodeGenerator.addTerceto("/", t.toString(), f.toString()); tipoTerceto.put(RESULT, combinarAritmetico(t, f)); :}
+       | unary_expr:f
+       {: System.out.println("[RULE] term -> unary_expr"); RESULT = f; :};
+
+unary_expr ::= SUB factor:f
+             {: System.out.println("[RULE] unary_expr -> - factor"); RESULT = IntermediateCodeGenerator.addTerceto("-", f.toString(), ""); tipoTerceto.put(RESULT, tipoTerceto.get(f)); :} %prec UMINUS
+             | PLUS factor:f
+             {: System.out.println("[RULE] unary_expr -> + factor"); RESULT = f; :} %prec UMINUS
+             | factor:f
+             {: System.out.println("[RULE] unary_expr -> factor"); RESULT = f; :} ;
+
+factor ::= IDENTIFIER:id
+         {:
+            System.out.println("[RULE] factor -> IDENTIFIER // factor -> " + id);
+            chequearDeclarada(id.toString());
+            RESULT = IntermediateCodeGenerator.addTerceto(id.toString(), "", "");
+            tipoTerceto.put(RESULT, mapTipo(symbolTable.getTypeOfName(id.toString())));
+         :}
+         | INTEGER_CONSTANT:i
+         {:
+            System.out.println("[RULE] factor -> INTEGER_CONSTANT // factor -> " + i);
+            symbolTable.addConstant(i, i);
+            RESULT = IntermediateCodeGenerator.addTerceto("_" + i.toString(), "", "");
+            tipoTerceto.put(RESULT, "Int");
+         :}
+         | OPEN_BRACKET expr:e CLOSE_BRACKET
+         {: System.out.println("[RULE] factor -> ( expr )"); RESULT = e; :}
+         | FLOAT_CONSTANT:f
+         {:
+            System.out.println("[RULE] factor -> FLOAT_CONSTANT // factor -> " + f);
+            symbolTable.addConstant(f, f);
+            RESULT = IntermediateCodeGenerator.addTerceto("_" + f.toString(), "", "");
+            tipoTerceto.put(RESULT, "Float");
+         :}
+         | STRING_CONSTANT:s
+         {:
+            System.out.println("[RULE] factor -> STRING_CONSTANT // factor -> " + s);
+            symbolTable.addConstant(s, s);
+            RESULT = IntermediateCodeGenerator.addTerceto("_" + s.toString(), "", "");
+            tipoTerceto.put(RESULT, "String");
+         :}
+         | LONG OPEN_BRACKET OPEN_SQUARE_BRACKET expr_list:cola CLOSE_SQUARE_BRACKET CLOSE_BRACKET
+         {:
+            System.out.println("[RULE] factor -> long ( [ expr_list ] )");
+            // La longitud se resuelve en tiempo de compilación: es la cantidad de elementos.
+            // El resultado se trata como una constante entera más (se registra en la tabla de símbolos).
+            int cantidad = ((List<Integer>) cola).size();
+            symbolTable.addConstant(cantidad, cantidad);
+            RESULT = IntermediateCodeGenerator.addTerceto("_" + cantidad, "", "");
+            tipoTerceto.put(RESULT, "Int");
+         :};
+
+condition ::= simple_condition
+              {:
+                  System.out.println("[RULE] condition -> simple_condition");
+                  // simple_condition ya apiló su salto por falso; dejamos la cantidad = 1
+                  IntermediateCodeGenerator.getPilaSaltos().push(1);
+              :}
+            | simple_condition AND simple_condition
+              {:
+                  System.out.println("[RULE] condition -> simple_condition AND simple_condition");
+                  // Cortocircuito AND: ambos saltos por falso salen del bloque.
+                  // No hace falta generar nada: los dos ya están apilados. Cantidad = 2.
+                  IntermediateCodeGenerator.getPilaSaltos().push(2);
+              :}
+            | simple_condition OR
+              {:
+                  // Acción intermedia (al detectar el OR): sc1 está en el tope de la pila.
+                  // Lo sacamos solo a él, invertimos su mnemónico para saltar POR VERDADERO
+                  // y guardamos su índice para completar el destino luego de sc2.
+                  int idxSc1 = IntermediateCodeGenerator.getPilaSaltos().pop();
+                  Terceto tSc1 = IntermediateCodeGenerator.getTerceto(idxSc1);
+                  tSc1.setOperando(IntermediateCodeGenerator.invertirMnemonico(tSc1.getOperando()));
+                  IntermediateCodeGenerator.setOrPrimerSalto(idxSc1);
+              :}
+              simple_condition
+              {:
+                  System.out.println("[RULE] condition -> simple_condition OR simple_condition");
+                  // Ya generado sc2: el próximo terceto es el inicio del bloque.
+                  // Completamos el destino del salto por verdadero de sc1.
+                  int idxSc1 = IntermediateCodeGenerator.getOrPrimerSalto();
+                  int inicioBloque = IntermediateCodeGenerator.getListaTercetos().size() + 1;
+                  IntermediateCodeGenerator.getTerceto(idxSc1).setOperador1(String.valueOf(inicioBloque));
+                  // sc2 sigue en la pila como salto por falso normal. Cantidad = 1.
+                  IntermediateCodeGenerator.getPilaSaltos().push(1);
+              :}
+            | NOT
+              {:
+                  // Acción intermedia (al detectar el NOT): prende la flag antes de reducir el simple_condition
+                  IntermediateCodeGenerator.setInvertir(true);
+              :}
+              simple_condition
+              {:
+                  System.out.println("[RULE] condition -> NOT simple_condition");
+                  // El salto ya se generó invertido dentro de simple_condition (flag). Cantidad = 1.
+                  IntermediateCodeGenerator.getPilaSaltos().push(1);
+              :};
+
+simple_condition ::= expr:e1 GREATER_THAN expr:e2
+                     {:
+                        System.out.println("[RULE] simple_condition -> expr > expr");
+                        IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());
+                        String salto = IntermediateCodeGenerator.isInvertir() ? "BGT" : "BLE";
+                        IntermediateCodeGenerator.setInvertir(false);
+                        int idx = IntermediateCodeGenerator.addTerceto(salto, "", "");
+                        IntermediateCodeGenerator.getPilaSaltos().push(idx);
+                        RESULT = idx;
+                     :}
+                   | expr:e1 LESS_THAN expr:e2
+                     {:
+                        System.out.println("[RULE] simple_condition -> expr < expr");
+                        IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());
+                        String salto = IntermediateCodeGenerator.isInvertir() ? "BLT" : "BGE";
+                        IntermediateCodeGenerator.setInvertir(false);
+                        int idx = IntermediateCodeGenerator.addTerceto(salto, "", "");
+                        IntermediateCodeGenerator.getPilaSaltos().push(idx);
+                        RESULT = idx;
+                     :}
+                   | expr:e1 LESS_THAN_EQUAL expr:e2
+                     {:
+                        System.out.println("[RULE] simple_condition -> expr <= expr");
+                        IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());
+                        String salto = IntermediateCodeGenerator.isInvertir() ? "BLE" : "BGT";
+                        IntermediateCodeGenerator.setInvertir(false);
+                        int idx = IntermediateCodeGenerator.addTerceto(salto, "", "");
+                        IntermediateCodeGenerator.getPilaSaltos().push(idx);
+                        RESULT = idx;
+                     :}
+                   | expr:e1 GREATER_THAN_EQUAL expr:e2
+                     {:
+                        System.out.println("[RULE] simple_condition -> expr >= expr");
+                        IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());
+                        String salto = IntermediateCodeGenerator.isInvertir() ? "BGE" : "BLT";
+                        IntermediateCodeGenerator.setInvertir(false);
+                        int idx = IntermediateCodeGenerator.addTerceto(salto, "", "");
+                        IntermediateCodeGenerator.getPilaSaltos().push(idx);
+                        RESULT = idx;
+                     :}
+                   | expr:e1 DOBLE_EQUAL expr:e2
+                     {:
+                        System.out.println("[RULE] simple_condition -> expr == expr");
+                        IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());
+                        String salto = IntermediateCodeGenerator.isInvertir() ? "BEQ" : "BNE";
+                        IntermediateCodeGenerator.setInvertir(false);
+                        int idx = IntermediateCodeGenerator.addTerceto(salto, "", "");
+                        IntermediateCodeGenerator.getPilaSaltos().push(idx);
+                        RESULT = idx;
+                     :}
+                   | expr:e1 NOT_EQUAL expr:e2
+                     {:
+                        System.out.println("[RULE] simple_condition -> expr != expr");
+                        IntermediateCodeGenerator.addTerceto("CMP", e1.toString(), e2.toString());
+                        String salto = IntermediateCodeGenerator.isInvertir() ? "BNE" : "BEQ";
+                        IntermediateCodeGenerator.setInvertir(false);
+                        int idx = IntermediateCodeGenerator.addTerceto(salto, "", "");
+                        IntermediateCodeGenerator.getPilaSaltos().push(idx);
+                        RESULT = idx;
+                     :};
+
+expr_list ::= expr:e
+    {:
+        System.out.println("[RULE] expr_list -> expr");
+        // Guardamos el índice de terceto de cada elemento, en orden
+        List<Integer> lista = new ArrayList<Integer>();
+        lista.add(e);
+        RESULT = lista;
+    :}
+    | expr_list:l COMMA expr:e
+    {:
+        System.out.println("[RULE] expr_list -> expr_list , expr");
+        List<Integer> lista = (List<Integer>) l;
+        lista.add(e);
+        RESULT = lista;
+    :};
+
+special_cycle ::= WHILE IDENTIFIER:x IN OPEN_SQUARE_BRACKET expr_list:cola CLOSE_SQUARE_BRACKET DO
+    {:
+        // action1: asignamos el PRIMER elemento a la variable de control (iteración 1)
+        // y recordamos dónde arranca el cuerpo para poder copiarlo después.
+        chequearDeclarada(x.toString());
+        List<Integer> lista = (List<Integer>) cola;
+        IntermediateCodeGenerator.addTerceto("=", String.valueOf(lista.get(0)), x.toString());
+        int bodyStart = IntermediateCodeGenerator.getListaTercetos().size() + 1;
+        IntermediateCodeGenerator.getPilaSaltos().push(bodyStart);   // pila -> soporta anidamiento
+    :}
+    statements ENDWHILE
+    {:
+        // action2: desenrollamos. Por cada elemento restante generamos su asignación
+        // y una copia relocada del cuerpo (la iteración 1 ya se generó al parsear statements).
+        List<Integer> lista = (List<Integer>) cola;
+        int bodyStart = IntermediateCodeGenerator.getPilaSaltos().pop();
+        int bodyEnd = IntermediateCodeGenerator.getListaTercetos().size();
+        for (int k = 1; k < lista.size(); k++) {
+            IntermediateCodeGenerator.addTerceto("=", String.valueOf(lista.get(k)), x.toString());
+            IntermediateCodeGenerator.copiarBloqueRelocado(bodyStart, bodyEnd);
+        }
+        System.out.println("[RULE] special_cycle -> WHILE IDENTIFIER IN [ expr_list ] DO statements ENDWHILE // special_cycle -> WHILE " + x + " IN [ expr_list ] DO statements ENDWHILE");
+    :};
+
+type ::= INT     {: System.out.println("[RULE] type -> INT");     RESULT = "Int"; :}
+       | BOOLEAN {: System.out.println("[RULE] type -> BOOLEAN"); RESULT = "Boolean"; :}
+       | FLOAT   {: System.out.println("[RULE] type -> FLOAT");   RESULT = "Float"; :}
+       | STRING  {: System.out.println("[RULE] type -> STRING");  RESULT = "String"; :};
