@@ -137,14 +137,14 @@ var_decl ::= id_list:l COLON type:t
 
 id_list ::= IDENTIFIER:s
             {:
-               System.out.println("[RULE] id_list -> IDENTIFIER (" + s + ")");
+               System.out.println("[RULE] id_list -> IDENTIFIER // id_list -> " + s);
                List<Object> list = new ArrayList<>();
                list.add(s);
                RESULT = list;
             :}
           | id_list:l COMMA IDENTIFIER:s
             {:
-               System.out.println("[RULE] id_list -> id_list , IDENTIFIER (" + s + ")");
+               System.out.println("[RULE] id_list -> id_list , IDENTIFIER // id_list -> id_list , " + s);
                List<Object> list = (List<Object>) l;
                list.add(s);
                RESULT = list;
@@ -222,7 +222,7 @@ if ::= cond_if OPEN_BRACE statements CLOSE_BRACE
 
 read ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET
          {:
-             System.out.println("[RULE] reader -> read ( IDENTIFIER (" + id + ") )");
+             System.out.println("[RULE] reader -> read ( IDENTIFIER ) // reader -> read ( " + id + " )");
              chequearDeclarada(id.toString());
              IntermediateCodeGenerator.addTerceto("READ", id.toString(), "");
          :} ;
@@ -235,7 +235,7 @@ write ::= WRITE OPEN_BRACKET expr:e CLOSE_BRACKET
 
 assignment ::= IDENTIFIER:id ASSIG expr:e
              {:
-                System.out.println("[RULE] assignment -> IDENTIFIER (" + id + ") = expr");
+                System.out.println("[RULE] assignment -> IDENTIFIER = expr // assignment -> " + id + " = expr");
                 chequearAsignacion(id.toString(), e);
                 IntermediateCodeGenerator.addTerceto("=", e.toString(), id.toString());
              :};
@@ -263,14 +263,14 @@ unary_expr ::= SUB factor:f
 
 factor ::= IDENTIFIER:id
          {:
-            System.out.println("[RULE] factor -> IDENTIFIER (" + id + ")");
+            System.out.println("[RULE] factor -> IDENTIFIER // factor -> " + id);
             chequearDeclarada(id.toString());
             RESULT = IntermediateCodeGenerator.addTerceto(id.toString(), "", "");
             tipoTerceto.put(RESULT, mapTipo(symbolTable.getTypeOfName(id.toString())));
          :}
          | INTEGER_CONSTANT:i
          {:
-            System.out.println("[RULE] factor -> INTEGER_CONSTANT (" + i + ")");
+            System.out.println("[RULE] factor -> INTEGER_CONSTANT // factor -> " + i);
             symbolTable.addConstant(i, i);
             RESULT = IntermediateCodeGenerator.addTerceto("_" + i.toString(), "", "");
             tipoTerceto.put(RESULT, "Int");
@@ -279,14 +279,14 @@ factor ::= IDENTIFIER:id
          {: System.out.println("[RULE] factor -> ( expr )"); RESULT = e; :}
          | FLOAT_CONSTANT:f
          {:
-            System.out.println("[RULE] factor -> FLOAT_CONSTANT (" + f + ")");
+            System.out.println("[RULE] factor -> FLOAT_CONSTANT // factor -> " + f);
             symbolTable.addConstant(f, f);
             RESULT = IntermediateCodeGenerator.addTerceto("_" + f.toString(), "", "");
             tipoTerceto.put(RESULT, "Float");
          :}
          | STRING_CONSTANT:s
          {:
-            System.out.println("[RULE] factor -> STRING_CONSTANT (" + s + ")");
+            System.out.println("[RULE] factor -> STRING_CONSTANT // factor -> " + s);
             symbolTable.addConstant(s, s);
             RESULT = IntermediateCodeGenerator.addTerceto("_" + s.toString(), "", "");
             tipoTerceto.put(RESULT, "String");
@@ -446,7 +446,7 @@ special_cycle ::= WHILE IDENTIFIER:x IN OPEN_SQUARE_BRACKET expr_list:cola CLOSE
             IntermediateCodeGenerator.addTerceto("=", String.valueOf(lista.get(k)), x.toString());
             IntermediateCodeGenerator.copiarBloqueRelocado(bodyStart, bodyEnd);
         }
-        System.out.println("[RULE] special_cycle -> WHILE IDENTIFIER (" + x + ") IN [ expr_list ] DO statements ENDWHILE");
+        System.out.println("[RULE] special_cycle -> WHILE IDENTIFIER IN [ expr_list ] DO statements ENDWHILE // special_cycle -> WHILE " + x + " IN [ expr_list ] DO statements ENDWHILE");
     :};
 
 type ::= INT     {: System.out.println("[RULE] type -> INT");     RESULT = "Int"; :}

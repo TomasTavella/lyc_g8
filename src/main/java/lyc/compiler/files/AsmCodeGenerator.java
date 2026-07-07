@@ -10,36 +10,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-/**
- * Genera el código Assembler (final.asm) a partir de la lista de tercetos.
- *
- * Enfoque (según la teórica "Generación de código ASM - Coprocesador Matemático"):
- *  - Se recorre el código intermedio (tercetos) desde el primero al último.
- *  - Toda la aritmética se resuelve con el coprocesador matemático (FPU): fld/fadd/fsub/fmul/fdiv.
- *  - Los números se tratan como reales de 32 bits (dd), igual que en el ejemplo provisto (ejemplo.asm).
- *  - Cada terceto de operación deja su resultado en una variable auxiliar @auxN.
- *  - Las comparaciones usan fcomp + fstsw + sahf, y los saltos condicionales usan las
- *    instrucciones sin signo (jb/jbe/ja/jae/je/jne) según la tabla de la cátedra.
- *
- * Prefijos de etiquetas en .DATA (para evitar colisiones con variables del usuario, que
- * siempre empiezan con "_" + letra):
- *  - _nombre     : variable del usuario
- *  - @kN         : constante numérica
- *  - @sN         : constante string
- *  - @auxN       : resultado temporal del terceto N
- */
 public class AsmCodeGenerator implements FileGenerator {
 
     private final SymbolTableGenerator symbolTable;
     private final List<Terceto> tercetos;
 
-    // Mapea el nombre crudo de una constante en la tabla de símbolos (_5, _3.14, _"Hola")
-    // a una etiqueta ASM válida (@k0, @k1, @s0). Los nombres crudos tienen puntos/comillas,
-    // que no son válidos como etiquetas en TASM.
+
     private final Map<String, String> constLabel = new LinkedHashMap<>();
-    // Datos de cada constante string: etiqueta -> contenido (sin comillas)
     private final Map<String, String> stringConst = new LinkedHashMap<>();
-    // Constantes numéricas: etiqueta -> literal float (ej "5.0")
     private final Map<String, String> numericConst = new LinkedHashMap<>();
 
     private static final String INDENT = "    ";
@@ -57,7 +35,6 @@ public class AsmCodeGenerator implements FileGenerator {
     private String build() {
         prepararConstantes();
 
-        // Auxiliares necesarias (una por cada terceto que es operación aritmética)
         Set<Integer> auxes = new TreeSet<>();
         for (Terceto t : tercetos) {
             if (esOperacionAritmetica(t)) {
@@ -65,7 +42,6 @@ public class AsmCodeGenerator implements FileGenerator {
             }
         }
 
-        // Etiquetas destino de saltos (terceto índice -> ET_indice)
         Set<Integer> targets = recolectarDestinosDeSalto();
 
         String code = generarCodigo(targets);
@@ -102,7 +78,7 @@ public class AsmCodeGenerator implements FileGenerator {
     }
 
     // ---------------------------------------------------------------
-    //  Preparación de constantes: asigna etiquetas ASM válidas
+    //  Preparación de constantes
     // ---------------------------------------------------------------
     private void prepararConstantes() {
         int k = 0, s = 0;
@@ -162,7 +138,7 @@ public class AsmCodeGenerator implements FileGenerator {
     }
 
     // ---------------------------------------------------------------
-    //  Sección .CODE: recorre los tercetos y traduce cada uno
+    //  Sección .CODE
     // ---------------------------------------------------------------
     private String generarCodigo(Set<Integer> targets) {
         StringBuilder c = new StringBuilder();
@@ -219,7 +195,7 @@ public class AsmCodeGenerator implements FileGenerator {
                 traducirRead(o1, c);
                 break;
             default:
-                c.append(INDENT).append("; TODO terceto no soportado: ")
+                c.append(INDENT).append("; Terceto no soportado: ")
                  .append(op).append(" ").append(o1).append(" ").append(o2).append("\n");
         }
     }
@@ -290,7 +266,6 @@ public class AsmCodeGenerator implements FileGenerator {
     // ---------------------------------------------------------------
     //  Resolución de operandos
     // ---------------------------------------------------------------
-    /** Nombre de memoria (dd) del resultado del terceto idx, para usar con la FPU. */
     private String mem(int idx) {
         Terceto t = tercetos.get(idx - 1);
         String op = t.getOperando();
