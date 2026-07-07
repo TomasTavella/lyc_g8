@@ -93,7 +93,6 @@ non terminal id_list;
 non terminal type;
 non terminal while, if, read, write;
 non terminal special_cycle;
-non terminal cond_if;
 
 // Precedencia
 precedence left OR;
@@ -152,15 +151,12 @@ id_list ::= IDENTIFIER:s
 
 while ::= WHILE
           {:
-              // 1. Guardamos el número del próximo terceto (donde arranca a evaluarse la condición)
               int inicioWhile = IntermediateCodeGenerator.getListaTercetos().size() + 1;
               IntermediateCodeGenerator.getPilaSaltos().push(inicioWhile);
           :}
           OPEN_BRACKET condition CLOSE_BRACKET
           OPEN_BRACE statements CLOSE_BRACE
           {:
-              // Al cerrar el bloque desapilamos: primero la cantidad de saltos por falso
-              // que dejó la condición, luego esos saltos, y por debajo el inicioWhile.
               int cantidad = IntermediateCodeGenerator.getPilaSaltos().pop();
               List<Integer> saltos = new ArrayList<>();
               for (int i = 0; i < cantidad; i++) {
@@ -168,10 +164,8 @@ while ::= WHILE
               }
               int inicioWhile = IntermediateCodeGenerator.getPilaSaltos().pop();
 
-              // Salto incondicional que obliga a volver arriba a reevaluar la condición
               IntermediateCodeGenerator.addTerceto("BI", String.valueOf(inicioWhile), "");
 
-              // Completamos el destino de todos los saltos por falso (salen del while)
               int finWhile = IntermediateCodeGenerator.getListaTercetos().size() + 1;
               for (int idx : saltos) {
                   IntermediateCodeGenerator.getTerceto(idx).setOperador1(String.valueOf(finWhile));
@@ -179,15 +173,8 @@ while ::= WHILE
               System.out.println("[RULE] while -> WHILE( condition ) { statements }");
           :} ;
 
-// --- MARCADOR PARA EL IF ---
-// El salto por falso ya lo generó simple_condition; aquí no hace falta generar nada.
-cond_if ::= IF OPEN_BRACKET condition CLOSE_BRACKET
-            {: /* saltos y cantidad ya quedaron apilados por condition */ :};
-
-// --- REGLA PRINCIPAL DEL IF ---
-if ::= cond_if OPEN_BRACE statements CLOSE_BRACE
+if ::= IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE statements CLOSE_BRACE
        {:
-           // Sin ELSE: los saltos por falso apuntan al primer terceto posterior al if
            int cantidad = IntermediateCodeGenerator.getPilaSaltos().pop();
            int proximoTerceto = IntermediateCodeGenerator.getListaTercetos().size() + 1;
            for (int i = 0; i < cantidad; i++) {
@@ -196,9 +183,8 @@ if ::= cond_if OPEN_BRACE statements CLOSE_BRACE
            }
            System.out.println("[RULE] if -> IF( condition ) { statements }");
        :}
-     | cond_if OPEN_BRACE statements CLOSE_BRACE
+     | IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE statements CLOSE_BRACE
        {:
-           // Marcador antes del ELSE: cierra el bloque verdadero
            int saltoIncondicional = IntermediateCodeGenerator.addTerceto("BI", "", "");
 
            // Los saltos por falso del if apuntan al inicio del bloque ELSE
@@ -213,7 +199,6 @@ if ::= cond_if OPEN_BRACE statements CLOSE_BRACE
        :}
        ELSE OPEN_BRACE statements CLOSE_BRACE
        {:
-           // Con ELSE: completamos el salto incondicional que salta por encima del bloque ELSE
            int saltoIncondicional = IntermediateCodeGenerator.getPilaSaltos().pop();
            int finIf = IntermediateCodeGenerator.getListaTercetos().size() + 1;
            IntermediateCodeGenerator.getTerceto(saltoIncondicional).setOperador1(String.valueOf(finIf));
@@ -294,8 +279,7 @@ factor ::= IDENTIFIER:id
          | LONG OPEN_BRACKET OPEN_SQUARE_BRACKET expr_list:cola CLOSE_SQUARE_BRACKET CLOSE_BRACKET
          {:
             System.out.println("[RULE] factor -> long ( [ expr_list ] )");
-            // La longitud se resuelve en tiempo de compilación: es la cantidad de elementos.
-            // El resultado se trata como una constante entera más (se registra en la tabla de símbolos).
+            // La longitud se resuelve en tiempo de compilación, es la cantidad de elementos.
             int cantidad = ((List<Integer>) cola).size();
             symbolTable.addConstant(cantidad, cantidad);
             RESULT = IntermediateCodeGenerator.addTerceto("_" + cantidad, "", "");
@@ -311,8 +295,6 @@ condition ::= simple_condition
             | simple_condition AND simple_condition
               {:
                   System.out.println("[RULE] condition -> simple_condition AND simple_condition");
-                  // Cortocircuito AND: ambos saltos por falso salen del bloque.
-                  // No hace falta generar nada: los dos ya están apilados. Cantidad = 2.
                   IntermediateCodeGenerator.getPilaSaltos().push(2);
               :}
             | simple_condition OR
